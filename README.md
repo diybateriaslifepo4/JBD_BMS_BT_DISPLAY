@@ -8,7 +8,7 @@ La solución se basa en un display que se conecta por bluetooth con nuestra bate
 Está basado en ESPHome y mezcla código de creación propia (la parte del display), con código tomado del proyecto de SISSY para comunicar el ESP32 con ESPHome por BT<br/>
 <br/>
 PARA QUE FUNCIONE CON TU BATERÍA TIENES QUE PONER LA MAC CORRESPONDIENTE EN EL YAML<br/>
-Generar el firmware BIN con ESPHOME y flashear directamente o desde ESPHOME WEB<br/>
+Generar el firmware y flashear directamente con ESPHOME en Home Assistant o crear el BIN y flashear desde ESPHOME WEB (en formato factory)<br/>
 Al funcionar con ESPHome también se puede integrar de forma nativa en Home Assistant, solamente descomentando la línea Api: <br/>
 También se puede tener una interfaz web accesible por red local si descomentamos las líneas del web_server:<br/>
 <br/>
