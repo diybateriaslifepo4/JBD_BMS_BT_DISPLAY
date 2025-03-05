@@ -1,30 +1,30 @@
 substitutions:
-  mac_address: a5:c2:37:29:6c:5a #AQUÍ TIENES QUE PONER LA MAC DE TU BATERÍA (las letras en minúsculas)
+  mac_address: a4:c1:38:46:08:56 #AQUÍ TIENES QUE PONER LA MAC DE TU BATERÍA (las letras en minúsculas)
   name: BMS
-  titulo_pantalla: "TITULO PANTALLA" #Aquí pon entre las comillas lo que quieras que aparezca en la primera línea del display
+  titulo_pantalla: "PRUEBA" #Aquí pon entre las comillas lo que quieras que aparezca en la primera línea del display
 external_components: #Esto es obligatorio, para que descargue lel componente necesario para la comunicación entre el BMS y el ESP32
   - source: github://syssi/esphome-jbd-bms@main
     refresh: 0s
 
-#web_server: #Esto es para poder entrar a la interfaz WEB poniendo la IP del ESP32 desde la red local
-#  port: 80
+web_server: #Esto es para poder entrar a la interfaz WEB poniendo la IP del ESP32 desde la red local
+  port: 80
 
-#wifi:  #Aquí tienes que poner los datos de tu wifi, si quieres que se conecte, si no puedes poner # delante de todas las lineas.
-#  ssid: XXXXXXXX #aquí el nombre de tu wifi
-#  password: XXXXXXXXX #Aquí la contraseña de tu wifi
-#  ap:      #Esto es para que el ESP cree un AP de conexión en caso de no poderse conectar al WIFI configurado
-#    ssid: "Prueba-Pantalla-2"
-#    password: "XXXXXXXXX"
+wifi:  #Aquí tienes que poner los datos de tu wifi, si quieres que se conecte, si no puedes poner # delante de todas las lineas.
+  ssid: XXXXXXXXX #aquí el nombre de tu wifi
+  password: XXXXXXXXXX #Aquí la contraseña de tu wifi
+  ap:      #Esto es para que el ESP cree un AP de conexión en caso de no poderse conectar al WIFI configurado
+    ssid: "Prueba-Pantalla-2"
+    password: "ZnwXjR0WxGal"
 
-#captive_portal: # Esto es para que si el wifi falla active el AP (Punto de acceso)
+captive_portal: # Esto es para que si el wifi falla active el AP (Punto de acceso)
 
-#api: #Esto es para que el ESP32 se comunique directamente con Home assistant, poner # delante para deshabilitar esta función
-#  encryption:
-#    key: "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX="
+api: #Esto es para que el ESP32 se comunique directamente con Home assistant, poner # delante para deshabilitar esta función
+  encryption:
+    key: "szctjULZfg2L9pzhsOQxP49CGKL1qAPajjkEbdbMHy8="
 
-#ota: #Esto es para que se pueda actualizar el firmware remotamente sin necesidad de conectarlo físicamente por usb/rs232
-#  - platform: esphome
-#    password: "XXXXXXXXXXXXXXXXXXXXXXXXXXX"
+ota: #Esto es para que se pueda actualizar el firmware remotamente sin necesidad de conectarlo físicamente por usb/rs232
+  - platform: esphome
+    password: "a07ce4750cc57b5360162ba12f209d3f"
 
 # A partir de aquí es todo necesario para el funcionamiento principal
 
@@ -194,45 +194,46 @@ lvgl:
             bg_color: 0x000000
             border_width: 0
             pad_all: 4
-            widgets:
-                - meter:
-                    id: meter_obj
-                    height: 100%
-                    width: 100%
-                    border_width: 0
-                    bg_opa: TRANSP
-                    align: CENTER
-                    scales:
-                      - range_from: -2700
-                        range_to: 1700
-                        angle_range: 180
-                        ticks:
-                          count: 0
-                        indicators:
-                          - line:
-                              id: val_needle
-                              width: 4  # Reducido de 8 a 5 para hacerlo menos grueso
-                              r_mod: 10  # Reducido de 12 a 10
-                              value: 0
-                              color: 0xFFFFFF
-                          - arc:
-                              color: 0xFF0000  # Rojo para valores negativos hasta 1900W
-                              r_mod: 8  # Reducido de 10
-                              width: 25  # Reducido de 31
-                              start_value: -2700
-                              end_value: -1900
-                          - arc:
-                              color: 0x0000FF  # Azul para valores negativos desde 1900W hasta 2700W
-                              r_mod: 8
-                              width: 25
-                              start_value: -1900
-                              end_value: 0
-                          - arc:
-                              color: 0x00FF00  # Verde para valores positivos
-                              r_mod: 8
-                              width: 25
-                              start_value: 0
-                              end_value: 1700
+            widgets:  # Fixed indentation here (was incorrectly indented before)
+              - meter:
+                  id: meter_obj
+                  height: 100%
+                  width: 100%
+                  border_width: 0
+                  bg_opa: TRANSP
+                  align: CENTER
+                  scales:
+                    - range_from: -1700
+                      range_to: 2000  # Ajustado el rango total
+                      angle_range: 180
+                      rotation: 180
+                      ticks:
+                        count: 0
+                      indicators:
+                        - line:
+                            id: val_needle
+                            width: 4
+                            r_mod: 10
+                            value: 0
+                            color: 0xFFFFFF
+                        - arc:
+                            color: 0x00FF00  # Verde (valores negativos)
+                            r_mod: 8
+                            width: 25
+                            start_value: -1700
+                            end_value: 0
+                        - arc:
+                            color: 0x0000FF  # Azul (valores positivos normales)
+                            r_mod: 8
+                            width: 25
+                            start_value: 0
+                            end_value: 1500
+                        - arc:
+                            color: 0xFF0000  # Rojo (valores positivos altos)
+                            r_mod: 8
+                            width: 25
+                            start_value: 1500
+                            end_value: 2000
 
         - label:
             align: TOP_RIGHT
@@ -381,7 +382,14 @@ interval:
           char str_buffer[50];  // Buffer para formatear strings
 
           if (id(bms_soc).has_state()) {
-            lv_label_set_text(id(label_soc), (to_string((int)id(bms_soc).state) + "%").c_str());
+            float soc = id(bms_soc).state;
+            if (soc >= 0 && soc <= 100) {
+              lv_label_set_text(id(label_soc), (to_string((int)soc) + "%").c_str());
+            } else {
+              lv_label_set_text(id(label_soc), "--%");  // Added % symbol here
+            }
+          } else {
+            lv_label_set_text(id(label_soc), "--%");  // Added % symbol here
           }
 
           if (id(bms_power).has_state()) {
