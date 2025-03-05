@@ -1,0 +1,808 @@
+substitutions:
+  mac_address_1: a4:c1:38:46:08:56 #MAC de la primera batería
+  mac_address_2: a4:c1:38:a4:cc:da #MAC de la segunda batería
+  name_1: BMS1 #Nombre para diferenciar la entidades, cambiar si queremos (esto solo es útil para Home Assistant)
+  name_2: BMS2 #Nombre para diferenciar la entidades, cambiar si queremos (esto solo es útil para Home Assistant)
+  titulo_pantalla_1: "BATTERY 1" # Título para la batería 1, cambiar por el que queramos
+  titulo_pantalla_2: "BATTERY 2" # Título para la batería 2, cambiar por el que queramos
+
+external_components:
+  - source: github://syssi/esphome-jbd-bms@main
+    refresh: 0s
+
+#web_server: #Esto es para poder entrar a la interfaz WEB poniendo la IP del ESP32 desde la red local
+#  port: 80
+
+# wifi:  #Aquí tienes que poner los datos de tu wifi, si quieres que se conecte, si no puedes poner # delante de todas las lineas.
+#   ssid: !secret wifi_ssid
+#   password: !secret wifi_password
+#   ap:      #Esto es para que el ESP cree un AP de conexión en caso de no poderse conectar al WIFI configurado
+#     ssid: "Prueba-Pantalla-2"
+#     password: "ZnwXjR0WxGal"
+
+# captive_portal: # Esto es para que si el wifi falla active el AP (Punto de acceso)
+
+# api: #Esto es para que el ESP32 se comunique directamente con Home assistant
+#   encryption:
+#     key: "szctjULZfg2L9pzhsOQxP49CGKL1qAPajjkEbdbMHy8="
+
+# ota: #Esto es para que se pueda actualizar el firmware remotamente sin necesidad de conectarlo físicamente por usb/rs232
+#   - platform: esphome
+#     password: "a07ce4750cc57b5360162ba12f209d3f"
+
+#esp32_ble_tracker:  #Esto es para que busque dispositivos BT, no es necesario si sabemos la MAC de nuestra batería
+#  on_ble_advertise:
+#    then:
+#      - lambda: |-
+#          if (x.get_name().rfind("xiaoxiang", 0) == 0) {
+#            ESP_LOGI("ble_adv", "New JBD-BMS found");
+#            ESP_LOGI("ble_adv", "  Name: %s", x.get_name().c_str());
+#            ESP_LOGI("ble_adv", "  MAC address: %s", x.address_str().c_str());
+#          }
+
+esphome:
+  name: jc3248w535_dual
+  friendly_name: Dual Battery Monitoring Display
+  platformio_options:
+    upload_speed: 921600
+    board_build.flash_mode: dio
+    board_build.f_flash: 80000000L
+    board_build.f_cpu: 240000000L
+  on_boot:
+    priority: -10
+    then:
+      - light.turn_on:
+          id: backlight_light
+          brightness: 100%
+      - lambda: |-
+          lv_disp_load_scr(id(battery1_page).obj);
+
+esp32:
+  board: esp32-s3-devkitc-1
+  flash_size: 16MB
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240: "y"
+      CONFIG_ESP32S3_DATA_CACHE_64KB: "y"
+      CONFIG_ESP32S3_DATA_CACHE_LINE_64B: "y"
+      CONFIG_SPIRAM_FETCH_INSTRUCTIONS: y
+      CONFIG_SPIRAM_RODATA: y
+
+psram:
+  mode: octal
+  speed: 80MHz
+
+logger:
+#  baud_rate: 921600
+  baud_rate: 0
+ble_client:
+  - id: client0
+    mac_address: ${mac_address_1}
+  - id: client1
+    mac_address: ${mac_address_2}
+
+jbd_bms_ble:
+  - id: bms0
+    ble_client_id: client0
+    update_interval: 5s  # Aumentado de 2s a 5s
+  - id: bms1
+    ble_client_id: client1
+    update_interval: 5s  # Aumentado de 2s a 5s
+
+# Display hardware configuration
+spi:
+  id: display_qspi
+  type: quad
+  clk_pin: 47
+  data_pins: [21, 48, 40, 39]
+
+i2c:
+  sda: 4
+  scl: 8
+  id: touchscreen_bus
+
+display:
+  - platform: qspi_dbi
+    model: AXS15231
+    data_rate: 40MHz
+    id: my_display
+    spi_id: display_qspi
+    dimensions:
+      height: 480
+      width: 320
+    cs_pin: 45
+    rotation: 0
+    auto_clear_enabled: false
+
+output:
+  - platform: ledc
+    pin: GPIO1
+    id: backlight
+
+light:
+  - platform: monochromatic
+    output: backlight
+    name: "Backlight Light"
+    restore_mode: ALWAYS_ON
+    id: backlight_light
+
+touchscreen:
+  - platform: axs15231
+    id: my_touch
+    display: my_display
+    i2c_id: touchscreen_bus
+    on_touch:
+      then:
+        - if:
+            condition:
+              not:
+                light.is_on: backlight_light
+            then:
+              - light.turn_on: backlight_light
+
+lvgl:
+  draw_rounding: 8
+  displays: my_display
+  touchscreens: my_touch
+  bg_color: 0x000000
+  border_width: 0
+  outline_width: 0
+  theme:
+    bar:
+      radius: 0
+      indicator:
+        radius: 0
+        arc_color: red
+    label:
+      bg_color: 0x000000
+      text_color: 0xFFFFFF
+      opa: 100%
+  pages:
+    - id: battery1_page
+      widgets:      
+        - label:
+            align: TOP_MID
+            y: 20
+            text: ${titulo_pantalla_1}
+            text_font: montserrat_22
+        
+        - label:
+            align: TOP_LEFT
+            x: 10
+            y: 50
+            id: label_voltage_1
+            text: 'V'
+            text_font: montserrat_48
+        
+        - label:
+            align: TOP_RIGHT
+            x: -10
+            y: 50
+            id: label_soc_1
+            text: '%'
+            text_font: montserrat_48
+
+        - label:
+            align: TOP_LEFT
+            x: 5
+            y: 230
+            id: label_current_1
+            text: 'A'
+            text_font: montserrat_40
+
+        - label:
+            align: TOP_MID
+            y: 140
+            id: label_temp_1
+            text: 'Temperatura: -- °C'
+            text_font: montserrat_20
+
+        - obj:
+            align: TOP_MID
+            y: 290
+            width: 220
+            height: 180
+            bg_color: 0x000000
+            border_width: 0
+            pad_all: 4
+            widgets:
+              - meter:
+                  id: meter_obj_1
+                  height: 100%
+                  width: 100%
+                  border_width: 0
+                  bg_opa: TRANSP
+                  align: CENTER
+                  scales:
+                    - range_from: -1700
+                      range_to: 2000
+                      angle_range: 180
+                      rotation: 180
+                      ticks:
+                        count: 0
+                      indicators:
+                        - line:
+                            id: val_needle_1
+                            width: 4
+                            r_mod: 10
+                            value: 0
+                            color: 0xFFFFFF
+                        - arc:
+                            color: 0x00FF00
+                            r_mod: 8
+                            width: 25
+                            start_value: -1700
+                            end_value: 0
+                        - arc:
+                            color: 0x0000FF
+                            r_mod: 8
+                            width: 25
+                            start_value: 0
+                            end_value: 1500
+                        - arc:
+                            color: 0xFF0000
+                            r_mod: 8
+                            width: 25
+                            start_value: 1500
+                            end_value: 2000
+
+        - label:
+            align: TOP_RIGHT
+            x: -5
+            y: 230
+            id: label_power_1
+            text: 'W'
+            text_font: montserrat_40
+
+        - label:
+            align: LEFT_MID
+            x: 15
+            y: 200
+            text: "Carga:"
+            text_font: montserrat_20
+        - led:
+            align: LEFT_MID
+            x: 100
+            y: 200
+            id: led_charging_1
+            color: 0x00ff00
+
+        - label:
+            align: CENTER
+            x: 55
+            y: 200
+            text: "Descarga:"
+            text_font: montserrat_20
+        - led:
+            align: RIGHT_MID
+            x: -10
+            y: 200
+            id: led_discharging_1
+            color: 0x00ff00
+
+        - label:
+            align: TOP_MID
+            y: 105
+            id: capacity_1
+            text: 'Restante: -- Ah'
+            text_font: montserrat_28
+
+        - label:
+            align: TOP_LEFT
+            y: 170
+            id: label_voltage1_1
+            text: 'Celda 1: -- V'
+            text_font: montserrat_20
+
+        - label:
+            align: TOP_RIGHT
+            y: 170
+            id: label_voltage2_1
+            text: 'Celda 2: -- V'
+            text_font: montserrat_20
+
+        - label:
+            align: TOP_LEFT
+            y: 200
+            id: label_voltage3_1
+            text: 'Celda 3: -- V'
+            text_font: montserrat_20
+
+        - label:
+            align: TOP_RIGHT
+            y: 200
+            id: label_voltage4_1
+            text: 'Celda 4: -- V'
+            text_font: montserrat_20
+            
+        - button:
+            id: light_button_1
+            x: 10
+            y: 10
+            width: 40
+            height: 40
+            on_click: 
+              then:
+                - if:
+                    condition:
+                      light.is_on: backlight_light
+                    then:
+                      - light.turn_off: backlight_light
+            widgets:
+              - label:
+                  text: "L"
+                  align: center
+                  text_font: montserrat_22
+
+        - button:
+            id: switch_to_bat2
+            x: 270
+            y: 10
+            width: 40
+            height: 40
+            on_click: 
+              then: 
+#                - logger.log: "Botón pulsado: Cambio a batería 2"  
+                - lvgl.page.show:
+                    id: battery2_page
+            widgets:
+              - label:
+                  text: ">"  
+                  align: center
+                  text_font: montserrat_22
+
+    - id: battery2_page
+      widgets:     
+        - label:
+            align: TOP_MID
+            y: 20
+            text: ${titulo_pantalla_2}
+            text_font: montserrat_22
+        
+        - label:
+            align: TOP_LEFT
+            x: 10
+            y: 50
+            id: label_voltage_2
+            text: 'V'
+            text_font: montserrat_48
+        
+        - label:
+            align: TOP_RIGHT
+            x: -10
+            y: 50
+            id: label_soc_2
+            text: '%'
+            text_font: montserrat_48
+
+        - label:
+            align: TOP_LEFT
+            x: 5
+            y: 230
+            id: label_current_2
+            text: 'A'
+            text_font: montserrat_40
+
+        - label:
+            align: TOP_MID
+            y: 140
+            id: label_temp_2
+            text: 'Temperatura: -- °C'
+            text_font: montserrat_20
+
+        - obj:
+            align: TOP_MID
+            y: 290
+            width: 220
+            height: 180
+            bg_color: 0x000000
+            border_width: 0
+            pad_all: 4
+            widgets:
+              - meter:
+                  id: meter_obj_2
+                  height: 100%
+                  width: 100%
+                  border_width: 0
+                  bg_opa: TRANSP
+                  align: CENTER
+                  scales:
+                    - range_from: -1700
+                      range_to: 2000
+                      angle_range: 180
+                      rotation: 180
+                      ticks:
+                        count: 0
+                      indicators:
+                        - line:
+                            id: val_needle_2
+                            width: 4
+                            r_mod: 10
+                            value: 0
+                            color: 0xFFFFFF
+                        - arc:
+                            color: 0x00FF00
+                            r_mod: 8
+                            width: 25
+                            start_value: -1700
+                            end_value: 0
+                        - arc:
+                            color: 0x0000FF
+                            r_mod: 8
+                            width: 25
+                            start_value: 0
+                            end_value: 1500
+                        - arc:
+                            color: 0xFF0000
+                            r_mod: 8
+                            width: 25
+                            start_value: 1500
+                            end_value: 2000
+
+        - label:
+            align: TOP_RIGHT
+            x: -5
+            y: 230
+            id: label_power_2
+            text: 'W'
+            text_font: montserrat_40
+
+        - label:
+            align: LEFT_MID
+            x: 15
+            y: 200
+            text: "Carga:"
+            text_font: montserrat_20
+        - led:
+            align: LEFT_MID
+            x: 100
+            y: 200
+            id: led_charging_2
+            color: 0x00ff00
+
+        - label:
+            align: CENTER
+            x: 55
+            y: 200
+            text: "Descarga:"
+            text_font: montserrat_20
+        - led:
+            align: RIGHT_MID
+            x: -10
+            y: 200
+            id: led_discharging_2
+            color: 0x00ff00
+
+        - label:
+            align: TOP_MID
+            y: 105
+            id: capacity_2
+            text: 'Restante: -- Ah'
+            text_font: montserrat_28
+
+        - label:
+            align: TOP_LEFT
+            y: 170
+            id: label_voltage1_2
+            text: 'Celda 1: -- V'
+            text_font: montserrat_20
+
+        - label:
+            align: TOP_RIGHT
+            y: 170
+            id: label_voltage2_2
+            text: 'Celda 2: -- V'
+            text_font: montserrat_20
+
+        - label:
+            align: TOP_LEFT
+            y: 200
+            id: label_voltage3_2
+            text: 'Celda 3: -- V'
+            text_font: montserrat_20
+
+        - label:
+            align: TOP_RIGHT
+            y: 200
+            id: label_voltage4_2
+            text: 'Celda 4: -- V'
+            text_font: montserrat_20
+        - button:
+            id: light_button_2
+            x: 10
+            y: 10
+            width: 40
+            height: 40
+            on_click: 
+              then:
+                - if:
+                    condition:
+                      light.is_on: backlight_light
+                    then:
+                      - light.turn_off: backlight_light
+            widgets:
+              - label:
+                  text: "L"
+                  align: center
+                  text_font: montserrat_22
+
+        - button:
+            id: switch_to_bat1
+            x: 270
+            y: 10
+            width: 40
+            height: 40
+            on_click:
+              then:
+#                - logger.log: "Botón pulsado: Cambio a batería 1"
+                - lvgl.page.show:
+                    id: battery1_page
+            widgets:
+              - label:
+                  text: "<"
+                  align: center
+                  text_font: montserrat_22
+
+binary_sensor:
+  - platform: jbd_bms_ble
+    jbd_bms_ble_id: bms0
+    balancing:
+      name: "${name_1} balanceando"
+      id: balancing_1
+    charging:
+      name: "${name_1} MOS carga"
+      id: charging_1
+    discharging:
+      name: "${name_1} MOS descarga"
+      id: discharging_1
+  - platform: jbd_bms_ble
+    jbd_bms_ble_id: bms1
+    balancing:
+      name: "${name_2} balanceando"
+      id: balancing_2
+    charging:
+      name: "${name_2} MOS carga"
+      id: charging_2
+    discharging:
+      name: "${name_2} MOS descarga"
+      id: discharging_2
+
+sensor:
+  - platform: jbd_bms_ble
+    jbd_bms_ble_id: bms0
+    # Sensores para batería 1 (agregar _1 a todos los IDs)
+    current:
+      name: "${name_1} current"
+      id: bms_current_1
+    power:
+      name: "${name_1} power"
+      id: bms_power_1
+    state_of_charge:
+      name: "${name_1} state of charge"
+      id: bms_soc_1
+    total_voltage:
+      name: "${name_1} total voltage"
+      id: bms_voltage_1
+    temperature_1:
+      name: "${name_1} temperature 1"
+      id: bms_temp_1
+    capacity_remaining:
+      name: "${name_1} capacity remaining"
+      id: remaining_1
+    min_cell_voltage:
+      name: "${name_1} min cell voltage"
+    max_cell_voltage:
+      name: "${name_1} max cell voltage"
+    cell_voltage_1:
+      name: "${name_1} cell voltage 1"
+      id: voltage1_1
+    cell_voltage_2:
+      name: "${name_1} cell voltage 2"
+      id: voltage2_1
+    cell_voltage_3:
+      name: "${name_1} cell voltage 3"
+      id: voltage3_1
+    cell_voltage_4:
+      name: "${name_1} cell voltage 4"
+      id: voltage4_1
+
+  - platform: jbd_bms_ble
+    jbd_bms_ble_id: bms1
+    # Sensores para batería 2 (agregar _2 a todos los IDs)
+    current:
+      name: "${name_2} current"
+      id: bms_current_2
+    power:
+      name: "${name_2} power"
+      id: bms_power_2
+    state_of_charge:
+      name: "${name_2} state of charge"
+      id: bms_soc_2
+    total_voltage:
+      name: "${name_2} total voltage"
+      id: bms_voltage_2
+    temperature_1:
+      name: "${name_2} temperature 1"
+      id: bms_temp_2
+    capacity_remaining:
+      name: "${name_2} capacity remaining"
+      id: remaining_2
+    min_cell_voltage:
+      name: "${name_2} min cell voltage"
+    max_cell_voltage:
+      name: "${name_2} max cell voltage"
+    cell_voltage_1:
+      name: "${name_2} cell voltage 1"
+      id: voltage1_2
+    cell_voltage_2:
+      name: "${name_2} cell voltage 2"
+      id: voltage2_2
+    cell_voltage_3:
+      name: "${name_2} cell voltage 3"
+      id: voltage3_2
+    cell_voltage_4:
+      name: "${name_2} cell voltage 4"
+      id: voltage4_2
+
+switch:
+  - platform: jbd_bms_ble
+    jbd_bms_ble_id: bms0
+    charging:
+      name: "${name_1} MOS carga"
+      id: swcarga_1
+    discharging:
+      name: "${name_1} MOS descarga"
+      id: swdescarga_1
+  - platform: jbd_bms_ble
+    jbd_bms_ble_id: bms1
+    charging:
+      name: "${name_2} MOS carga"
+      id: swcarga_2
+    discharging:
+      name: "${name_2} MOS descarga"
+      id: swdescarga_2
+
+interval:
+  - interval: 4s 
+    then:
+      - lambda: |-
+          // Solo actualizar si el backlight está encendido
+          if (!id(backlight_light).current_values.is_on()) {
+            return;
+          }
+          
+          ESP_LOGD("Display", "Actualizando datos en pantalla");
+          char str_buffer[50];
+          
+          // Actualización para batería 1
+          if (id(bms_soc_1).has_state()) {
+            float soc = id(bms_soc_1).state;
+            if (soc >= 0 && soc <= 100) {
+              lv_label_set_text(id(label_soc_1), (to_string((int)soc) + "%").c_str());
+            } else {
+              lv_label_set_text(id(label_soc_1), "--%");
+            }
+          }
+
+          if (id(bms_power_1).has_state()) {
+            lv_meter_set_indicator_value(id(meter_obj_1), id(val_needle_1), (int)id(bms_power_1).state);
+            snprintf(str_buffer, sizeof(str_buffer), "%.0f W", id(bms_power_1).state);
+            lv_label_set_text(id(label_power_1), str_buffer);
+          }
+
+          if (id(charging_1).state) {
+            lv_led_on(id(led_charging_1));
+          } else {
+            lv_led_off(id(led_charging_1));
+          }
+
+          if (id(discharging_1).state) {
+            lv_led_on(id(led_discharging_1));
+          } else {
+            lv_led_off(id(led_discharging_1));
+          }
+
+          if (id(bms_voltage_1).has_state()) {
+            snprintf(str_buffer, sizeof(str_buffer), "%.1f V", id(bms_voltage_1).state);
+            lv_label_set_text(id(label_voltage_1), str_buffer);
+          }
+
+          if (id(bms_current_1).has_state()) {
+            snprintf(str_buffer, sizeof(str_buffer), "%.1f A", id(bms_current_1).state);
+            lv_label_set_text(id(label_current_1), str_buffer);
+          }
+
+          if (id(bms_temp_1).has_state()) {
+            snprintf(str_buffer, sizeof(str_buffer), "Temperatura: %.1f °C", id(bms_temp_1).state);
+            lv_label_set_text(id(label_temp_1), str_buffer);
+          }
+
+          if (id(remaining_1).has_state()) {
+            snprintf(str_buffer, sizeof(str_buffer), "Restante: %.0f Ah", id(remaining_1).state);
+            lv_label_set_text(id(capacity_1), str_buffer);
+          }
+
+          // Voltajes individuales de celdas batería 1
+          if (id(voltage1_1).has_state()) {
+            snprintf(str_buffer, sizeof(str_buffer), "Celda 1: %.2f V", id(voltage1_1).state);
+            lv_label_set_text(id(label_voltage1_1), str_buffer);
+          }
+          if (id(voltage2_1).has_state()) {
+            snprintf(str_buffer, sizeof(str_buffer), "Celda 2: %.2f V", id(voltage2_1).state);
+            lv_label_set_text(id(label_voltage2_1), str_buffer);
+          }
+          if (id(voltage3_1).has_state()) {
+            snprintf(str_buffer, sizeof(str_buffer), "Celda 3: %.2f V", id(voltage3_1).state);
+            lv_label_set_text(id(label_voltage3_1), str_buffer);
+          }
+          if (id(voltage4_1).has_state()) {
+            snprintf(str_buffer, sizeof(str_buffer), "Celda 4: %.2f V", id(voltage4_1).state);
+            lv_label_set_text(id(label_voltage4_1), str_buffer);
+          }
+
+          // Actualización para batería 2
+          if (id(bms_soc_2).has_state()) {
+            float soc = id(bms_soc_2).state;
+            if (soc >= 0 && soc <= 100) {
+              lv_label_set_text(id(label_soc_2), (to_string((int)soc) + "%").c_str());
+            } else {
+              lv_label_set_text(id(label_soc_2), "--%");
+            }
+          }
+
+          if (id(bms_power_2).has_state()) {
+            lv_meter_set_indicator_value(id(meter_obj_2), id(val_needle_2), (int)id(bms_power_2).state);
+            snprintf(str_buffer, sizeof(str_buffer), "%.0f W", id(bms_power_2).state);
+            lv_label_set_text(id(label_power_2), str_buffer);
+          }
+
+          if (id(charging_2).state) {
+            lv_led_on(id(led_charging_2));
+          } else {
+            lv_led_off(id(led_charging_2));
+          }
+
+          if (id(discharging_2).state) {
+            lv_led_on(id(led_discharging_2));
+          } else {
+            lv_led_off(id(led_discharging_2));
+          }
+
+          if (id(bms_voltage_2).has_state()) {
+            snprintf(str_buffer, sizeof(str_buffer), "%.1f V", id(bms_voltage_2).state);
+            lv_label_set_text(id(label_voltage_2), str_buffer);
+          }
+
+          if (id(bms_current_2).has_state()) {
+            snprintf(str_buffer, sizeof(str_buffer), "%.1f A", id(bms_current_2).state);
+            lv_label_set_text(id(label_current_2), str_buffer);
+          }
+
+          if (id(bms_temp_2).has_state()) {
+            snprintf(str_buffer, sizeof(str_buffer), "Temperatura: %.1f °C", id(bms_temp_2).state);
+            lv_label_set_text(id(label_temp_2), str_buffer);
+          }
+
+          if (id(remaining_2).has_state()) {
+            snprintf(str_buffer, sizeof(str_buffer), "Restante: %.0f Ah", id(remaining_2).state);
+            lv_label_set_text(id(capacity_2), str_buffer);
+          }
+
+          // Voltajes individuales de celdas batería 2
+          if (id(voltage1_2).has_state()) {
+            snprintf(str_buffer, sizeof(str_buffer), "Celda 1: %.2f V", id(voltage1_2).state);
+            lv_label_set_text(id(label_voltage1_2), str_buffer);
+          }
+          if (id(voltage2_2).has_state()) {
+            snprintf(str_buffer, sizeof(str_buffer), "Celda 2: %.2f V", id(voltage2_2).state);
+            lv_label_set_text(id(label_voltage2_2), str_buffer);
+          }
+          if (id(voltage3_2).has_state()) {
+            snprintf(str_buffer, sizeof(str_buffer), "Celda 3: %.2f V", id(voltage3_2).state);
+            lv_label_set_text(id(label_voltage3_2), str_buffer);
+          }
+          if (id(voltage4_2).has_state()) {
+            snprintf(str_buffer, sizeof(str_buffer), "Celda 4: %.2f V", id(voltage4_2).state);
+            lv_label_set_text(id(label_voltage4_2), str_buffer);
+          }
