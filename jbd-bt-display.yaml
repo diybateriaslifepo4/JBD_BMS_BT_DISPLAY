@@ -393,7 +393,7 @@ interval:
           }
 
           if (id(bms_power).has_state()) {
-            lv_meter_set_indicator_value(id(meter_obj), id(val_needle), (int)id(bms_power).state);
+            lv_meter_set_indicator_value(id(meter_obj), id(val_needle), -(int)id(bms_power).state);
             snprintf(str_buffer, sizeof(str_buffer), "%.0f W", id(bms_power).state);
             lv_label_set_text(id(label_power), str_buffer);
           }
