@@ -1,7 +1,7 @@
 substitutions:
-  mac_address: A5:C2:37:2C:AB:7C #AQUÍ TIENES QUE PONER LA MAC DE TU BATERÍA (las letras en minúsculas)
+  mac_address: a5:c2:37:2b:97:8e #AQUÍ TIENES QUE PONER LA MAC DE TU BATERÍA (las letras en minúsculas)
   name: BMS
-  titulo_pantalla: "+DIY Electro Camper+" #Aquí pon entre las comillas lo que quieras que aparezca en la primera línea del display
+  titulo_pantalla: "+ TITULO +" #Aquí pon entre las comillas lo que quieras que aparezca en la primera línea del display
 external_components: #Esto es obligatorio, para que descargue lel componente necesario para la comunicación entre el BMS y el ESP32
   - source: github://syssi/esphome-jbd-bms@main
     refresh: 0s
@@ -193,7 +193,7 @@ lvgl:
 
         - label:
             align: TOP_MID
-            y: 80
+            y: 85
             id: label_temp
             text: 'Temperatura: -- °C'
             text_font: montserrat_26
@@ -207,7 +207,7 @@ lvgl:
             bg_color: 0x000000
             border_width: 0
             pad_all: 4
-            widgets:  # Fixed indentation here (was incorrectly indented before)
+            widgets:
               - meter:
                   id: meter_obj
                   height: 100%
@@ -216,10 +216,10 @@ lvgl:
                   bg_opa: TRANSP
                   align: CENTER
                   scales:
-                    - range_from: -1700
-                      range_to: 2000  # Ajustado el rango total
-                      angle_range: 180
-                      rotation: 180
+                    - range_from: -1200
+                      range_to: 2000
+                      angle_range: 200
+                      rotation: 170
                       ticks:
                         count: 0
                       indicators:
@@ -228,24 +228,42 @@ lvgl:
                             width: 4
                             r_mod: 10
                             value: 0
-                            color: 0xFF774E
+                            color: 0xFFFFFF  # Aguja en blanco
                         - arc:
-                            color: 0x6df74f  # Verde (valores negativos)
+                            color: 0x008000  # Verde oscuro (valores más negativos)
                             r_mod: 8
                             width: 25
-                            start_value: -1700
+                            start_value: -1200
+                            end_value: -700
+                        - arc:
+                            color: 0x00FF00  # Verde claro (valores menos negativos)
+                            r_mod: 8
+                            width: 25
+                            start_value: -700
                             end_value: 0
                         - arc:
-                            color: 0xff9300    # Azul (valores positivos normales)
+                            color: 0x0000FF  # Azul (0 a 600W)
                             r_mod: 8
                             width: 25
                             start_value: 0
-                            end_value: 1500
+                            end_value: 700
                         - arc:
-                            color: 0xb71008  # Rojo (valores positivos altos)
+                            color: 0xFFFF00  # Amarillo (600 a 1000W)
                             r_mod: 8
                             width: 25
-                            start_value: 1500
+                            start_value: 700
+                            end_value: 1200
+                        - arc:
+                            color: 0xFFA500  # Naranja (1000 a 1500W)
+                            r_mod: 8
+                            width: 25
+                            start_value: 1200
+                            end_value: 1600
+                        - arc:
+                            color: 0xFF0000  # Rojo (1500 a 2000W)
+                            r_mod: 8
+                            width: 25
+                            start_value: 1600
                             end_value: 2000
 
         - label:
@@ -263,21 +281,21 @@ lvgl:
             y: 140
             text: "Carga  /"
             text_font: titulo_25
-            text_color: 0x344c1e
+            text_color: 0x00FF00
         - led:
             align: LEFT_MID
             x: 130
             y: 140
             id: led_charging
-            color: 0x00ff00
+            color: 0x00FF00
 
         - label:
             align: CENTER
-            x: 120
+            x: 110
             y: 140
             text: "Descarga  /"           
             text_font: titulo_25
-            text_color: 0x344c1e
+            text_color: 0x00FF00
         - led:
             align: RIGHT_MID
             x: -10
